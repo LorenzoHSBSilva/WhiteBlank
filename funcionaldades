@@ -1,0 +1,236 @@
+class TemplateUsuario:
+    def __init__(self, nome, autor):
+        self.nome = nome
+        self.autor = autor
+        self.elementos = []
+
+    def adicionar_base(self, tipo, valor):
+        self.elementos.append(f"[{tipo.upper()}] {valor}")
+
+    def __str__(self):
+        return f"{self.nome} - {self.autor.nome}"
+
+
+class Slide:
+    def __init__(self, numero):
+        self.numero = numero
+        self.conteudo = []
+        self.proximo = None
+
+    def adicionar_item(self, tipo, valor):
+        self.conteudo.append(f"[{tipo.upper()}] {valor}")
+
+    def carregar_de_template(self, template_obj):
+        for item in template_obj.elementos:
+            self.conteudo.append(item)
+
+
+class Perfil:
+    def __init__(self):
+        self.foto_perfil = "padrão_perfil.jpg"
+        self.descricao = "Sem descrição ainda."
+
+    def exibir_completo(self, usuario, grupos, projetos, templates):
+        print(f"\n" + "="*45)
+        print(f"       PERFIL DE: {usuario.nome.upper()} (ID: {usuario.id})")
+        print("="*45)
+        print(f"Descrição: {self.descricao}")
+        print("-" * 45)
+        
+        print("GRUPOS:")
+        meus_grupos = [g.nome_grupo for g in grupos.values() if any(m.id == usuario.id for m in g.membros)]
+        for g_nome in meus_grupos: print(f"  - {g_nome}")
+        if not meus_grupos: print("  (Nenhum)")
+
+        print("\nTEMPLATES AUTORAIS:")
+        meus_t = [t.nome for t in templates if t.autor.id == usuario.id]
+        for t_nome in meus_t: print(f"  - {t_nome}")
+        if not meus_t: print("  (Nenhum)")
+
+        print("\nPROJETOS VINCULADOS:")
+        for p in projetos.values():
+            e_autor = (not hasattr(p.autor, 'nome_grupo') and p.autor.id == usuario.id)
+            e_membro = (hasattr(p.autor, 'nome_grupo') and any(m.id == usuario.id for m in p.autor.membros))
+            if e_autor or e_membro:
+                print(f"  - {p.nome} ({p.total_slides} slides)")
+        print("="*45)
+
+
+class Usuario:
+    proximo_id = 1
+    def __init__(self, email, senha, nome=None):
+        self.email = email
+        self.senha = senha
+        self.nome = nome
+        self.id = str(Usuario.proximo_id).zfill(7)
+        Usuario.proximo_id += 1
+        self.perfil = Perfil()
+
+
+class Grupo:
+    def __init__(self, nome_grupo):
+        self.nome_grupo = nome_grupo
+        self.membros = []
+
+
+class Projeto:
+    def __init__(self, nome, autor):
+        self.nome = nome
+        self.autor = autor
+        self.template_utilizado = "Nenhum"
+        self.primeiro_slide = Slide(1)
+        self.ultimo_slide = self.primeiro_slide
+        self.total_slides = 1
+
+    def novo_slide(self):
+        self.total_slides += 1
+        novo = Slide(self.total_slides)
+        self.ultimo_slide.proximo = novo
+        self.ultimo_slide = novo
+
+    def trocar_slides(self, n1, n2):
+        s1 = self.buscar_slide(n1)
+        s2 = self.buscar_slide(n2)
+        if s1 and s2:
+            s1.conteudo, s2.conteudo = s2.conteudo, s1.conteudo
+            print("Ordem alterada!")
+        else:
+            print("Slide não encontrado.")
+
+    def buscar_slide(self, numero):
+        atual = self.primeiro_slide
+        while atual:
+            if atual.numero == int(numero): return atual
+            atual = atual.proximo
+        return None
+
+    def __str__(self):
+        nome_a = self.autor.nome_grupo if hasattr(self.autor, 'nome_grupo') else self.autor.nome
+        resumo = (f"\nPROJETO: {self.nome} | AUTOR: {nome_a}\n"
+                  f"TOTAL DE SLIDES: {self.total_slides} | TEMPLATE: {self.template_utilizado}\n"
+                  f"{'='*30}\n")
+        atual = self.primeiro_slide
+        while atual:
+            resumo += f"--- SLIDE {atual.numero} ---\n      "
+            resumo += "\n      ".join(atual.conteudo) if atual.conteudo else "Vazio"
+            resumo += "\n"
+            atual = atual.proximo
+        return resumo
+
+
+class SistemaLogin:
+    def __init__(self):
+        self.todos_usuarios = []
+        self.todos_grupos = {}
+        self.todos_projetos = {}
+        self.todos_templates = []
+
+    def menu_principal(self):
+        while True:
+            print("\n" + "—"*40)
+            print("       SISTEMA OPERACIONAL")
+            print("—"*40)
+            print("1 - Cadastrar Usuário")
+            print("2 - Lista de Usuários")
+            print("3 - Criar Template")
+            print("4 - Lista de Templates")
+            print("5 - Criar/Acessar Grupos")
+            print("6 - Criar/Acessar Projeto")
+            print("7 - Lista de Projetos")
+            print("8 - Ver Perfil Detalhado")
+            print("0 - Sair")
+            
+            opcao = input("\nEscolha: ")
+            match opcao:
+                case "1": self.cadastrar_usuario()
+                case "2": self.listar_usuarios()
+                case "3": self.criar_template_usuario()
+                case "4": self.listar_templates()
+                case "5": self.modulo_grupos()
+                case "6": self.modulo_projetos()
+                case "7": self.listar_projetos()
+                case "8": self.ver_perfil()
+                case "0": break
+
+    def cadastrar_usuario(self):
+        u = Usuario(input("Email: "), input("Senha: "), input("Nome: "))
+        self.todos_usuarios.append(u)
+        print(f"ID: {u.id}")
+
+    def listar_usuarios(self):
+        for u in self.todos_usuarios: print(f"ID: {u.id} | Nome: {u.nome}")
+
+    def criar_template_usuario(self):
+        n_u = input("Nome do usuário: ")
+        autor = next((u for u in self.todos_usuarios if u.nome.lower() == n_u.lower()), None)
+        if not autor: return
+
+        nome_t = input("Nome do Template: ")
+        novo_t = TemplateUsuario(nome_t, autor)
+        while True:
+            print("1- Texto | 2- Imagem | 3- Salvar")
+            op = input(": ")
+            if op == "1": novo_t.adicionar_base("texto", input("T: "))
+            elif op == "2": novo_t.adicionar_base("imagem", input("I: "))
+            elif op == "3": self.todos_templates.append(novo_t); break
+
+    def listar_templates(self):
+        print("\n--- TEMPLATES ---")
+        for t in self.todos_templates: print(f"{t.nome} - {t.autor.nome}")
+
+    def modulo_grupos(self):
+        print("1- Criar | 2- Add Membro")
+        op = input(": ")
+        if op == "1":
+            n = input("Nome: "); self.todos_grupos[n] = Grupo(n)
+        else:
+            g = self.todos_grupos.get(input("Grupo: "))
+            u = next((u for u in self.todos_usuarios if u.nome == input("User: ")), None)
+            if g and u: g.membros.append(u)
+
+    def modulo_projetos(self):
+        print("1- Criar | 2- Acessar")
+        if input(": ") == "1":
+            tipo = input("1- User | 2- Grupo: ")
+            autor = next((u for u in self.todos_usuarios if u.nome == input("Nome: ")), None) if tipo == "1" else self.todos_grupos.get(input("Nome: "))
+            if autor: self.fluxo_projeto(input("Nome Projeto: "), autor)
+        else:
+            p = self.todos_projetos.get(input("Nome: "))
+            if p: print(p)
+
+    def fluxo_projeto(self, nome, autor):
+        novo_p = Projeto(nome, autor)
+        while True:
+            print(f"\nSlide {novo_p.ultimo_slide.numero}")
+            print("1- Texto | 2- Imagem | 3- Usar Template | 4- Novo Slide | 5- Ordem | 6- Sair")
+            sub = input(": ")
+            match sub:
+                case "1": novo_p.ultimo_slide.adicionar_item("texto", input("T: "))
+                case "2": novo_p.ultimo_slide.adicionar_item("imagem", input("I: "))
+                case "3":
+                    print("1- Template Padrão (1-5) | 2- Template de Usuário")
+                    if input(": ") == "1":
+                        n = input("Escolher template n (1,2,3,4,5): ")
+                        novo_p.template_utilizado = f"Padrão {n}"
+                    else:
+                        t_n = input("Nome Template: ")
+                        t_o = next((t for t in self.todos_templates if t.nome.lower() == t_n.lower()), None)
+                        if t_o:
+                            novo_p.ultimo_slide.carregar_de_template(t_o)
+                            novo_p.template_utilizado = t_o.nome
+                case "4": novo_p.novo_slide()
+                case "5": novo_p.trocar_slides(input("A: "), input("B: "))
+                case "6": self.todos_projetos[nome] = novo_p; break
+
+    def listar_projetos(self):
+        for p in self.todos_projetos.values(): print(f"Projeto: {p.nome} | Slides: {p.total_slides}")
+
+    def ver_perfil(self):
+        n = input("Nome: ")
+        u = next((u for u in self.todos_usuarios if u.nome.lower() == n.lower()), None)
+        if u: u.perfil.exibir_completo(u, self.todos_grupos, self.todos_projetos, self.todos_templates)
+
+
+if __name__ == "__main__":
+    app = SistemaLogin()
+    app.menu_principal()
